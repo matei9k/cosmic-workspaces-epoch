@@ -112,6 +112,7 @@ enum Msg {
     UpdateToplevelIcon(String, Option<PathBuf>),
     OnScroll(wl_output::WlOutput, ScrollDelta),
     TogglePinned(ExtWorkspaceHandleV1),
+    EnteredWorkspaceSidebarEntry(ExtWorkspaceHandleV1, bool),
     Ignore,
 }
 
@@ -125,6 +126,7 @@ struct Workspace {
     coordinates: Vec<u32>,
     is_active: bool,
     is_pinned: bool,
+    has_cursor: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -409,6 +411,7 @@ impl Application for App {
                                 img,
                                 is_active,
                                 is_pinned,
+                                has_cursor: false,
                             });
                         }
                         self.update_capture_filter();
@@ -668,6 +671,15 @@ impl Application for App {
                         workspace_handle,
                         !workspace.is_pinned,
                     ));
+                }
+            }
+            Msg::EnteredWorkspaceSidebarEntry(workspace_handle, entered) => {
+                if let Some(workspace) = self
+                    .workspaces
+                    .iter_mut()
+                    .find(|w| w.handle == workspace_handle)
+                {
+                    workspace.has_cursor = entered;
                 }
             }
             Msg::Ignore => {}

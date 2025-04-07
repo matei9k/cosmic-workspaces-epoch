@@ -144,6 +144,22 @@ fn workspace_item_appearance(
     appearance
 }
 
+fn pin_button_style(theme: &cosmic::Theme, is_pinned: bool) -> cosmic::widget::button::Style {
+    let bg_color = if is_pinned {
+        theme.cosmic().accent.base.into()
+    } else {
+        iced::Color::from_rgb8(255, 0, 0)
+    };
+    cosmic::widget::button::Style {
+        //icon_color: Some(iced::Color::from(theme.cosmic().background.base).into()),
+        //icon_color: Some(iced::Color::from_rgb8(255, 0, 0).into()),
+        //icon_color: Some(iced::Color::from(theme.cosmic().accent.base).into()),
+        background: Some(iced::Background::Color(bg_color)),
+        border_radius: theme.cosmic().corner_radii.radius_s.into(),
+        ..cosmic::widget::button::Style::new()
+    }
+}
+
 fn workspace_item<'a>(
     workspace: &'a Workspace,
     _output: &wl_output::WlOutput,
@@ -151,27 +167,41 @@ fn workspace_item<'a>(
 ) -> cosmic::Element<'static, Msg> {
     let image = capture_image(workspace.img.as_ref(), 1.0);
     let is_active = workspace.is_active;
+    let is_pinned = workspace.is_pinned;
+    let mut label_row: Vec<cosmic::Element<_>> = vec![widget::text::body(fl!(
+        "workspace",
+        HashMap::from([("number", &workspace.name)])
+    ))
+    .into()];
+    if workspace.has_cursor || workspace.is_pinned {
+        label_row.push(widget::horizontal_space().into());
+        label_row.push(
+            widget::button::custom(
+                widget::icon::from_name("pin-symbolic")
+                    .symbolic(true)
+                    .size(16), //.style(|theme, status| todo!())
+            )
+            //.class(cosmic::theme::Button::Icon)
+            //.class(cosmic::theme::Button::Image)
+            .class(cosmic::theme::Button::Custom {
+                // TODO adjust state for hover, etc.
+                active: Box::new(move |_, theme| pin_button_style(theme, is_pinned)),
+                disabled: Box::new(move |theme| pin_button_style(theme, is_pinned)),
+                hovered: Box::new(move |_, theme| pin_button_style(theme, is_pinned)),
+                pressed: Box::new(move |_, theme| pin_button_style(theme, is_pinned)),
+            })
+            //.class(cosmic::theme::Button::Standard)
+            // TODO style selected correctly
+            .selected(workspace.is_pinned)
+            .on_press(Msg::TogglePinned(workspace.handle.clone()))
+            .into(),
+        );
+    }
     // TODO editable name?
     widget::button::custom(
-        column![
-            image,
-            row![
-                widget::text::body(fl!(
-                    "workspace",
-                    HashMap::from([("number", &workspace.name)])
-                )),
-                widget::horizontal_space(),
-                // TODO in Adwaita, but not pop?
-                widget::button::custom(widget::icon::from_name("pin-symbolic").size(16))
-                    //.class(cosmic::theme::Button::Icon)
-                    .class(cosmic::theme::Button::Image)
-                    // TODO style selected correctly
-                    .selected(workspace.is_pinned)
-                    .on_press(Msg::TogglePinned(workspace.handle.clone()))
-            ]
-        ]
-        .align_x(iced::Alignment::Center)
-        .spacing(4),
+        column![image, widget::Row::from_vec(label_row),]
+            .align_x(iced::Alignment::Center)
+            .spacing(4),
     )
     .selected(workspace.is_active)
     .class(cosmic::theme::Button::Custom {
@@ -223,6 +253,15 @@ fn workspace_sidebar_entry<'a>(
     };
     */
     let item = workspace_item(workspace, output, is_drop_target);
+    let item = iced::widget::mouse_area(item)
+        .on_enter(Msg::EnteredWorkspaceSidebarEntry(
+            workspace.handle.clone(),
+            true,
+        ))
+        .on_exit(Msg::EnteredWorkspaceSidebarEntry(
+            workspace.handle.clone(),
+            false,
+        ));
     let workspace_clone = workspace.clone(); // TODO avoid clone
     let output_clone = output.clone();
     let source = cosmic::widget::dnd_source(item)
